@@ -23,7 +23,7 @@ export PATH
 #
 # ——————————————————————————————————————————————————————————————————————————————————
 #
-DATE_VERSION="v1.7.0-2024_08_02_18_08"
+DATE_VERSION="v1.7.1-2024_08_09_12_50"
 #
 # ——————————————————————————————————————————————————————————————————————————————————
 amilys_embyserver_latest_version=4.8.8.0
@@ -564,6 +564,15 @@ function wait_xiaoya_start() {
 
 }
 
+function clear_qrcode_container() {
+
+    # shellcheck disable=SC2046
+    docker rm -f $(docker ps -a -q --filter ancestor=ddsderek/xiaoya-glue:quark_cookie) > /dev/null 2>&1
+    # shellcheck disable=SC2046
+    docker rm -f $(docker ps -a -q --filter ancestor=ddsderek/xiaoya-glue:python) > /dev/null 2>&1
+
+}
+
 function check_quark_cookie() {
 
     if [[ ! -f "${1}/quark_cookie.txt" ]] && [[ ! -s "${1}/quark_cookie.txt" ]]; then
@@ -673,6 +682,7 @@ function check_115_cookie() {
 
 function qrcode_aliyunpan_tvtoken() {
 
+    clear_qrcode_container
     cpu_arch=$(uname -m)
     case $cpu_arch in
     "x86_64" | *"amd64"* | "aarch64" | *"arm64"* | *"armv8"* | *"arm/v8"*)
@@ -715,6 +725,7 @@ function qrcode_aliyunpan_tvtoken() {
 
 function qrcode_aliyunpan_refreshtoken() {
 
+    clear_qrcode_container
     cpu_arch=$(uname -m)
     case $cpu_arch in
     "x86_64" | *"amd64"* | "aarch64" | *"arm64"* | *"armv8"* | *"arm/v8"*)
@@ -750,6 +761,7 @@ function qrcode_aliyunpan_refreshtoken() {
 
 function qrcode_aliyunpan_opentoken() {
 
+    clear_qrcode_container
     cpu_arch=$(uname -m)
     case $cpu_arch in
     "x86_64" | *"amd64"* | "aarch64" | *"arm64"* | *"armv8"* | *"arm/v8"*)
@@ -785,6 +797,7 @@ function qrcode_aliyunpan_opentoken() {
 
 function qrcode_115_cookie() {
 
+    clear_qrcode_container
     cpu_arch=$(uname -m)
     case $cpu_arch in
     "x86_64" | *"amd64"* | "aarch64" | *"arm64"* | *"armv8"* | *"arm/v8"*)
@@ -820,6 +833,7 @@ function qrcode_115_cookie() {
 
 function qrcode_quark_cookie() {
 
+    clear_qrcode_container
     cpu_arch=$(uname -m)
     case $cpu_arch in
     "x86_64" | *"amd64"* | "aarch64" | *"arm64"* | *"armv8"* | *"arm/v8"*)
@@ -1323,8 +1337,15 @@ function update_xiaoya_alist() {
         echo -en "即将开始更新小雅Alist${Blue} $i ${Font}\r"
         sleep 1
     done
-    container_update_extra_command="if ! grep -q '2347' /tmp/container_update_$(cat ${DDSREM_CONFIG_DIR}/container_name/xiaoya_alist_name.txt); then sed -i '2s/^/-p 2347:2347 /' /tmp/container_update_$(cat ${DDSREM_CONFIG_DIR}/container_name/xiaoya_alist_name.txt); fi"
+    cat > "/tmp/container_update_xiaoya_alist_run.sh" <<- EOF
+#!/bin/bash
+if ! grep -q '2347' "/tmp/container_update_$(cat ${DDSREM_CONFIG_DIR}/container_name/xiaoya_alist_name.txt)"; then
+    sed -i '2s/^/-p 2347:2347 /' "/tmp/container_update_$(cat ${DDSREM_CONFIG_DIR}/container_name/xiaoya_alist_name.txt)"
+fi
+EOF
+    container_update_extra_command="bash /tmp/container_update_xiaoya_alist_run.sh"
     container_update "$(cat ${DDSREM_CONFIG_DIR}/container_name/xiaoya_alist_name.txt)"
+    rm -f /tmp/container_update_xiaoya_alist_run.sh
 
 }
 
@@ -3130,7 +3151,8 @@ function install_emby_xiaoya_all_emby() {
         get_nsswitch_conf_path
 
         while true; do
-            if [ "${CHOOSE_EMBY}" == "amilys_embyserver" ]; then
+            case ${CHOOSE_EMBY} in
+            "amilys_embyserver")
                 cpu_arch=$(uname -m)
                 if [[ $cpu_arch == "aarch64" || $cpu_arch == *"arm64"* || $cpu_arch == *"armv8"* || $cpu_arch == *"arm/v8"* ]]; then
                     WARN "amilys/embyserver_arm64v8 镜像无法指定版本号，默认拉取 latest 镜像！"
@@ -3154,11 +3176,13 @@ function install_emby_xiaoya_all_emby() {
                         ;;
                     esac
                 fi
-            elif [ "${CHOOSE_EMBY}" == "install_lovechen_embyserver" ]; then
+                ;;
+            "install_lovechen_embyserver")
                 WARN "lovechen/embyserver 镜像无法指定版本号，默认拉取 4.7.14.0 镜像！"
                 IMAGE_VERSION=4.7.14.0
                 break
-            elif [ "${CHOOSE_EMBY}" == "emby_embyserver" ]; then
+                ;;
+            "emby_embyserver")
                 INFO "请选择 Emby 镜像版本 [ 1；4.8.0.56 | 2；4.8.8.0 | 3；latest ]（默认 1）"
                 read -erp "CHOOSE_IMAGE_VERSION:" CHOOSE_IMAGE_VERSION
                 [[ -z "${CHOOSE_IMAGE_VERSION}" ]] && CHOOSE_IMAGE_VERSION="1"
@@ -3179,7 +3203,8 @@ function install_emby_xiaoya_all_emby() {
                     ERROR "输入无效，请重新选择"
                     ;;
                 esac
-            fi
+                ;;
+            esac
         done
 
         case ${CHOOSE_EMBY} in
@@ -5804,10 +5829,11 @@ function main_other_tools() {
 
     echo -e "——————————————————————————————————————————————————————————————————————————————————"
     echo -e "${Blue}其他工具${Font}\n"
-    echo -e "1、安装/更新/卸载 Portainer                   当前状态：$(judgment_container "${portainer_name}")"
-    echo -e "2、安装/更新/卸载 Auto_Symlink                当前状态：$(judgment_container "${auto_symlink_name}")"
-    echo -e "3、安装/更新/卸载 Onelist                     当前状态：$(judgment_container "${xiaoya_onelist_name}")"
-    echo -e "4、安装/更新/卸载 Xiaoya Proxy                当前状态：$(judgment_container xiaoya-proxy)"
+    echo -ne "${INFO} 界面加载中...${Font}\r"
+    echo -e "1、安装/更新/卸载 Portainer                   当前状态：$(judgment_container "${portainer_name}")
+2、安装/更新/卸载 Auto_Symlink                当前状态：$(judgment_container "${auto_symlink_name}")
+3、安装/更新/卸载 Onelist                     当前状态：$(judgment_container "${xiaoya_onelist_name}")
+4、安装/更新/卸载 Xiaoya Proxy                当前状态：$(judgment_container xiaoya-proxy)"
     echo -e "5、查看系统磁盘挂载"
     echo -e "6、安装/卸载 CasaOS"
     echo -e "7、AI老G 安装脚本"
@@ -5952,13 +5978,17 @@ function first_init() {
 
     root_need
 
+    INFO "获取系统信息中..."
     get_os
 
+    INFO "获取 IP 地址中..."
     CITY="$(curl -fsSL -m 10 -s http://ipinfo.io/json | sed -n 's/.*"city": *"\([^"]*\)".*/\1/p')"
     if [ -n "${CITY}" ]; then
         IP_CITY="IP City: ${Yellow}${CITY}${Font}"
+        INFO "获取 IP 地址成功！"
     fi
 
+    INFO "检查 Docker 版本"
     DOCKER_VERSION="$(docker -v | sed "s/Docker version //g" | cut -d',' -f1)"
 
     if [ ! -d ${DDSREM_CONFIG_DIR} ]; then
@@ -5968,6 +5998,7 @@ function first_init() {
     if [ -f /xiaoya_alist_media_dir.txt ]; then
         mv /xiaoya_alist_media_dir.txt ${DDSREM_CONFIG_DIR}
     fi
+    INFO "初始化容器名称中..."
     init_container_name
 
     if [ ! -f ${DDSREM_CONFIG_DIR}/container_run_extra_parameters.txt ]; then
@@ -5994,6 +6025,7 @@ function first_init() {
         echo 'true' > ${DDSREM_CONFIG_DIR}/xiaoya_connectivity_detection.txt
     fi
 
+    INFO "设置 Docker 镜像源中..."
     if [ ! -f "${DDSREM_CONFIG_DIR}/image_mirror.txt" ]; then
         if ! auto_choose_image_mirror; then
             echo 'docker.io' > ${DDSREM_CONFIG_DIR}/image_mirror.txt
@@ -6003,6 +6035,7 @@ function first_init() {
         touch ${DDSREM_CONFIG_DIR}/image_mirror_user.txt
     fi
 
+    INFO "清理旧配置文件中..."
     if [ -f ${DDSREM_CONFIG_DIR}/xiaoya_emby_url.txt ]; then
         rm -rf ${DDSREM_CONFIG_DIR}/xiaoya_emby_url.txt
     fi
@@ -6029,6 +6062,8 @@ function first_init() {
             echo -e "alias xiaoya='bash -c \"\$(curl -sLk https://ddsrem.com/xiaoya_install.sh)\"'" >> /etc/profile
         fi
     fi
+    INFO "初始化完成！"
+    sleep 1
 
 }
 
